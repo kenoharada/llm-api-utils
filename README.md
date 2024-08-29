@@ -1,4 +1,54 @@
 # llm-api-utils
+For more details see [source code](./llm_api_utils.py)  
+## How to use
+### Setup
+```bash
+pip install openai google-generativeai anthropic
+# set environment variables in .env like .env.example
+vim .env
+# set environment variables
+export $(grep -v '^#' .env | xargs)
+```
+
+### Example of usage
+```python
+from llm_api_utils import get_llm_response
+
+
+model_name = 'gpt-4o-mini-2024-07-18'
+params = {
+    'max_tokens': 256, 
+    'temperature': 0.0
+}
+
+messages = [
+    {"role": "system", "content": "回答の際は、3つの回答を箇条書きで回答してください。"},
+    {"role": "user", "content": "大喜利しましょう。とても面白い回答をしてくださいね。"},
+    {"role": "assistant", "content": "おけ、任せて"},
+    {"role": "user", "content": "こんな台風は嫌だ、どんな台風？"}
+]
+
+print(messages[-1]['content'])
+response = get_llm_response(model_name, params, messages)
+print(response)
+print('#######', model_name)
+
+model_name = 'claude-3-5-sonnet-20240620'
+response = get_llm_response(model_name, params, messages)
+print(response)
+print('#######', model_name)
+
+# example of asynchronous request
+import asyncio
+from llm_api_utils import get_llm_response_async, retry_with_linear_backoff
+model_name = 'models/gemini-1.5-pro-001'
+@retry_with_linear_backoff(delay=60, max_retries=5)
+async def main():
+    response = await get_llm_response_async(model_name, params, messages)
+    print(response)
+asyncio.run(main())
+print('#######', model_name)
+```
 
 ## Links
 ### OpenAI
@@ -46,5 +96,5 @@
 | gpt-4o-2024-05-13 [Tier 5](https://platform.openai.com/docs/guides/rate-limits/tier-5-rate-limits)| 10,000 | 30,000,000 |
 | claude-3-5-sonnet-20240620 [Tier 4](https://docs.anthropic.com/en/api/rate-limits#rate-limits)| 4,000  | 400,000    |
 | gemini-1.5-pro-001 [Pay-as-you-go](https://ai.google.dev/gemini-api/docs/models/gemini#gemini-1.5-pro)| 360  | 4,000,000  |
-| gpt-4o-2024-05-13 [Tier 5](https://platform.openai.com/docs/guides/rate-limits/tier-5-rate-limits)| 30,000 | 150,000,000 |
+| gpt-4o-mini-2024-07-18 [Tier 5](https://platform.openai.com/docs/guides/rate-limits/tier-5-rate-limits)| 30,000 | 150,000,000 |
 | gemini-1.5-flash-001 [Pay-as-you-go](https://ai.google.dev/gemini-api/docs/models/gemini#gemini-1.5-flash)| 1,000  | 4,000,000  |
