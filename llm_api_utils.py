@@ -2,6 +2,7 @@ import time
 import os
 import asyncio
 from typing_extensions import get_args
+from tenacity import retry, wait_fixed, stop_after_attempt
 
 
 import openai
@@ -14,7 +15,11 @@ import google.api_core.exceptions as google_exceptions
 
 def get_llm_response(model_name: str, params: dict, messages: list[dict]) -> str:
     if model_name in OPENAI_MODEL_NAMES:
-        return get_gpt_respnose(model_name, params, messages)
+        if 'max_tokens' in params:
+            params_copy = params.copy()
+            params_copy['max_completion_tokens'] = params_copy['max_tokens']
+            del params_copy['max_tokens']
+        return get_gpt_respnose(model_name, params_copy, messages)
     elif model_name in ANTHROPIC_MODEL_NAMES:
         return get_claude_response(model_name, params, messages)
     elif model_name in GEMINI_MODEL_NAMES:
@@ -23,8 +28,12 @@ def get_llm_response(model_name: str, params: dict, messages: list[dict]) -> str
         raise ValueError(f"model_name {model_name} not supported. Supported model names are: {OPENAI_MODEL_NAMES + ANTHROPIC_MODEL_NAMES + GEMINI_MODEL_NAMES}")
     
 
+@retry(wait=wait_fixed(90), stop=stop_after_attempt(10))
 async def get_llm_response_async(model_name: str, params: dict, messages: list[dict]) -> str:
     if model_name in OPENAI_MODEL_NAMES:
+        if 'max_tokens' in params:
+            params['max_completion_tokens'] = params['max_tokens']
+            del params['max_tokens']
         return await get_gpt_respnose_async(model_name, params, messages)
     elif model_name in ANTHROPIC_MODEL_NAMES:
         return await get_claude_response_async(model_name, params, messages)
@@ -32,7 +41,7 @@ async def get_llm_response_async(model_name: str, params: dict, messages: list[d
         return await get_gemini_response_async(model_name, params, messages)
     else:
         raise ValueError(f"model_name {model_name} not supported. Supported model names are: {OPENAI_MODEL_NAMES + ANTHROPIC_MODEL_NAMES + GEMINI_MODEL_NAMES}")
-    
+
 
 def get_gpt_respnose(model_name: str, params: dict, messages: list[dict]) -> str:
     client = OpenAI()
@@ -42,7 +51,6 @@ def get_gpt_respnose(model_name: str, params: dict, messages: list[dict]) -> str
         **params
     )
     return response.choices[0].message.content
-
 
 async def get_gpt_respnose_async(model_name: str, params: dict, messages: list[dict]) -> str:
     client = AsyncOpenAI()
@@ -71,7 +79,6 @@ def get_claude_response(model_name: str, params: dict, messages: list[dict]) -> 
         )
     return response.content[0].text
 
-
 async def get_claude_response_async(model_name: str, params: dict, messages: list[dict]) -> str:
     client = AsyncAnthropic()
     if messages[0]['role'] == 'system':
@@ -89,14 +96,20 @@ async def get_claude_response_async(model_name: str, params: dict, messages: lis
         )
     return response.content[0].text
 
-
+from google.generativeai.types import HarmCategory, HarmBlockThreshold
 def get_gemini_response(model_name: str, params: dict, messages: list[dict]) -> str:
+    safety_settings={
+        HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+        HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+        HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+        HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+    }
     generation_config = parse_gemini_generation_config(params)
     if messages[0]['role'] == 'system':
         client = genai.GenerativeModel(
             model_name=model_name,
             generation_config=generation_config,
-            system_instruction=messages[0]['content']
+            system_instruction=messages[0]['content'],
         )
     else:
         client = genai.GenerativeModel(
@@ -104,17 +117,22 @@ def get_gemini_response(model_name: str, params: dict, messages: list[dict]) -> 
             generation_config=generation_config,
         )
     gemini_messages = parse_gemini_messages(messages)
-    response = client.generate_content(gemini_messages)
+    response = client.generate_content(gemini_messages, safety_settings=safety_settings)
     return response.text
-
 
 async def get_gemini_response_async(model_name: str, params: dict, messages: list[dict]) -> str:
+    safety_settings={
+        HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+        HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+        HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+        HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+    }
     generation_config = parse_gemini_generation_config(params)
     if messages[0]['role'] == 'system':
         client = genai.GenerativeModel(
             model_name=model_name,
             generation_config=generation_config,
-            system_instruction=messages[0]['content']
+            system_instruction=messages[0]['content'],
         )
     else:
         client = genai.GenerativeModel(
@@ -122,8 +140,14 @@ async def get_gemini_response_async(model_name: str, params: dict, messages: lis
             generation_config=generation_config,
         )
     gemini_messages = parse_gemini_messages(messages)
-    response = await client.generate_content_async(gemini_messages)
-    return response.text
+    try:
+        response = await client.generate_content_async(gemini_messages, safety_settings=safety_settings)
+        return response.text
+    except ValueError as e:
+        # https://github.com/google-gemini/generative-ai-python/issues/282
+        print(e)
+        print(response)
+        return ''
 
 
 def parse_gemini_generation_config(params: dict) -> dict:
@@ -185,48 +209,6 @@ GEMINI_MODEL_NAMES = get_gemini_model_names()
 ANTHROPIC_MODEL_NAMES = get_anthropic_model_names()
 
 
-def retry_with_linear_backoff(
-    delay: float = 90,
-    max_retries: int = 10,
-    errors: tuple = (
-        openai.RateLimitError,
-        anthropic.RateLimitError,
-        google_exceptions.ResourceExhausted,
-    ),
-):
-    """Retry a function with linear backoff."""
-    
-    def decorator(func):
-        def wrapper(*args, **kwargs):
-            # Initialize variables
-            num_retries = 0
-
-            # Loop until a successful response or max_retries is hit or an exception is raised
-            while True:
-                try:
-                    return func(*args, **kwargs)
-
-                # Retry on specified errors
-                except errors as e:
-                    # Increment retries
-                    num_retries += 1
-
-                    # Check if max retries has been reached
-                    if num_retries > max_retries:
-                        raise Exception(
-                            f"Maximum number of retries ({max_retries}) exceeded."
-                        )
-
-                    # Sleep for the delay
-                    time.sleep(delay)
-
-                # Raise exceptions for any errors not specified
-                except Exception as e:
-                    raise e
-
-        return wrapper
-    return decorator
-
 if __name__ == '__main__':
     # model_name = 'gpt-4o-mini-2024-07-18'
     # model_name = 'models/gemini-1.5-flash-001'
@@ -244,7 +226,6 @@ if __name__ == '__main__':
     response = get_llm_response(model_name, params, messages)
     print(response)
 
-    @retry_with_linear_backoff(delay=60, max_retries=5)
     async def main():
         response = await get_llm_response_async(model_name, params, messages)
         print(response)

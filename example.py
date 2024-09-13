@@ -3,7 +3,7 @@ from llm_api_utils import get_llm_response
 
 model_name = 'gpt-4o-mini-2024-07-18'
 params = {
-    'max_tokens': 256, 
+    'max_tokens': 4096, 
     'temperature': 0.0
 }
 
@@ -26,9 +26,10 @@ print('#######', model_name)
 
 # example of asynchronous request
 import asyncio
-from llm_api_utils import get_llm_response_async, retry_with_linear_backoff
-model_name = 'models/gemini-1.5-flash-001'
-@retry_with_linear_backoff(delay=60, max_retries=5)
+from llm_api_utils import get_llm_response_async
+from tenacity import retry, stop_after_attempt, wait_fixed
+model_name = 'models/gemini-1.5-pro-exp-0827'
+@retry(wait=wait_fixed(90), stop=stop_after_attempt(10))
 async def main():
     response = await get_llm_response_async(model_name, params, messages)
     print(response)

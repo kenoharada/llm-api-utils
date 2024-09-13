@@ -40,9 +40,10 @@ print('#######', model_name)
 
 # example of asynchronous request
 import asyncio
-from llm_api_utils import get_llm_response_async, retry_with_linear_backoff
+from llm_api_utils import get_llm_response_async
+from tenacity import retry, stop_after_attempt, wait_fixed
 model_name = 'models/gemini-1.5-pro-001'
-@retry_with_linear_backoff(delay=60, max_retries=5)
+@retry(wait=wait_fixed(90), stop=stop_after_attempt(10))
 async def main():
     response = await get_llm_response_async(model_name, params, messages)
     print(response)
@@ -80,11 +81,12 @@ print('#######', model_name)
 - cookbook: https://github.com/google-gemini/cookbook  
 
 ## Cost (Input / Output per 1M tokens) 
-| Model                   | Input Cost | Output Cost |
 |-------------------------|------------|-------------|
+| o1-preview-2024-09-12       | $15.00      | $60.00      |
 | gpt-4o-2024-05-13       | $5.00      | $15.00      |
 | claude-3-5-sonnet-20240620 | $3.00      | $15.00      |
 | gemini-1.5-pro-001      | $3.50      | $10.50      |
+| o1-mini-2024-09-12      | $3.00      | $12.00      |
 | gpt-4o-mini-2024-07-18  | $0.15      | $0.60       |
 | gemini-1.5-flash-001    | $0.075     | $0.30       |
 
@@ -98,3 +100,5 @@ print('#######', model_name)
 | gemini-1.5-pro-001 [Pay-as-you-go](https://ai.google.dev/gemini-api/docs/models/gemini#gemini-1.5-pro)| 360  | 4,000,000  |
 | gpt-4o-mini-2024-07-18 [Tier 5](https://platform.openai.com/docs/guides/rate-limits/tier-5-rate-limits)| 30,000 | 150,000,000 |
 | gemini-1.5-flash-001 [Pay-as-you-go](https://ai.google.dev/gemini-api/docs/models/gemini#gemini-1.5-flash)| 1,000  | 4,000,000  |
+| o1-preview-2024-09-12 [Tier 5](https://platform.openai.com/docs/guides/rate-limits/tier-5-rate-limits)| 20 | 30,000,000 |
+| o1-mini-2024-09-12 [Tier 5](https://platform.openai.com/docs/guides/rate-limits/tier-5-rate-limits)| 20 | 150,000,000 |
