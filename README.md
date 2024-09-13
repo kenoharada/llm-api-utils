@@ -17,7 +17,6 @@ from llm_api_utils import get_llm_response
 
 model_name = 'gpt-4o-mini-2024-07-18'
 params = {
-    'max_tokens': 256, 
     'temperature': 0.0
 }
 
@@ -56,7 +55,7 @@ print('#######', model_name)
 [Sample code](./call_gpt.py)
 - document: https://platform.openai.com/docs/overview  
 - library: https://github.com/openai/openai-python  
-- models: https://platform.openai.com/docs/models  
+- models: https://platform.openaxi.com/docs/models  
 - playground: https://platform.openai.com/playground/chat?models=gpt-4o  
 - pricing: https://openai.com/api/pricing/  
 - status: https://status.openai.com/  

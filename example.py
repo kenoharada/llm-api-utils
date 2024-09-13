@@ -3,7 +3,6 @@ from llm_api_utils import get_llm_response
 
 model_name = 'gpt-4o-mini-2024-07-18'
 params = {
-    'max_tokens': 4096, 
     'temperature': 0.0
 }
 

@@ -13,14 +13,17 @@ import google.generativeai as genai
 import google.api_core.exceptions as google_exceptions
 
 
-def get_llm_response(model_name: str, params: dict, messages: list[dict]) -> str:
+def get_llm_response(model_name: str, params_: dict, messages: list[dict]) -> str:
+    params = params_.copy()
     if model_name in OPENAI_MODEL_NAMES:
         if 'max_tokens' in params:
-            params_copy = params.copy()
-            params_copy['max_completion_tokens'] = params_copy['max_tokens']
-            del params_copy['max_tokens']
-        return get_gpt_respnose(model_name, params_copy, messages)
+            params['maxcompletion_tokens'] = params['max_tokens']
+            del params['max_tokens']
+            return get_gpt_respnose(model_name, params, messages)
+        return get_gpt_respnose(model_name, params, messages)
     elif model_name in ANTHROPIC_MODEL_NAMES:
+        if 'max_tokens' not in params:
+            params['max_tokens'] = 8192
         return get_claude_response(model_name, params, messages)
     elif model_name in GEMINI_MODEL_NAMES:
         return get_gemini_response(model_name, params, messages)
@@ -32,9 +35,11 @@ def get_llm_response(model_name: str, params: dict, messages: list[dict]) -> str
 async def get_llm_response_async(model_name: str, params: dict, messages: list[dict]) -> str:
     if model_name in OPENAI_MODEL_NAMES:
         if 'max_tokens' in params:
-            params['max_completion_tokens'] = params['max_tokens']
-            del params['max_tokens']
-        return await get_gpt_respnose_async(model_name, params, messages)
+            params_copy = params.copy()
+            params_copy['max_completion_tokens'] = params_copy['max_tokens']
+            del params_copy['max_tokens']
+            return get_gpt_respnose(model_name, params_copy, messages)
+        return get_gpt_respnose(model_name, params, messages)
     elif model_name in ANTHROPIC_MODEL_NAMES:
         return await get_claude_response_async(model_name, params, messages)
     elif model_name in GEMINI_MODEL_NAMES:
