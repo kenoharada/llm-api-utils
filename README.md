@@ -3,7 +3,7 @@ For more details see [source code](./llm_api_utils.py)
 ## How to use
 ### Setup
 ```bash
-pip install openai google-generativeai anthropic
+pip install openai google-generativeai anthropic tenacity
 # set environment variables in .env like .env.example
 vim .env
 # set environment variables
